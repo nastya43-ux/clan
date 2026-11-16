@@ -57,7 +57,7 @@ def get_cancel_keyboard():
 async def cmd_start(message: Message):
     user_name = message.from_user.first_name
     await message.answer(
-        f"<b>Приветствую, {user_name}!</b> \n\n"
+        f"<b>Приветствую, {user_name}!</b> 👋\n\n"
         "<i>Нажмите на кнопку ниже, чтобы вызвать анкету на вступление в клан.</i>",
         reply_markup=get_inline_keyboard()
     )
@@ -136,15 +136,17 @@ async def process_roblox(message: Message, state: FSMContext):
     await state.set_state(Questionnaire.skin_photo)
     await message.answer("<b>8/8.</b> Отправьте <b>скриншот вашего скина</b> <i>(картинкой)</i>:")
 
-@dp.message(Questionnaire.skin_photo, F.photo)
+# Обработка фото (поддерживает и фото, и документы-картинки)
+@dp.message(Questionnaire.skin_photo, F.photo | F.document)
 async def process_photo(message: Message, state: FSMContext):
-    photo_id = message.photo[-1].file_id
+    photo_id = message.photo[-1].file_id if message.photo else message.document.file_id
     data = await state.update_data(skin_photo=photo_id)
     
     name = html.escape(data['name'])
     skills = html.escape(data['skills'])
     sociability = html.escape(data['sociability'])
     user_id = message.from_user.id
+    username = f"@{message.from_user.username}" if message.from_user.username else f"id{user_id}"
 
     summary = (
         f"<b>Новая анкета в клан</b>\n"
@@ -179,10 +181,8 @@ async def process_photo(message: Message, state: FSMContext):
 async def process_photo_incorrect(message: Message):
     await message.answer("<i>Пожалуйста, отправьте именно фотографию скина.</i>")
 
-
 @dp.callback_query(F.data.startswith("admin_reply_"))
 async def admin_start_reply(callback: CallbackQuery, state: FSMContext):
-    # Проверяем, что нажатие происходит именно из админской группы
     if callback.message.chat.id != ADMIN_ID:
         await callback.answer("Эта кнопка доступна только администраторам в группе.", show_alert=True)
         return
@@ -192,7 +192,6 @@ async def admin_start_reply(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminReply.waiting_for_reply)
     await state.update_data(target_user_id=target_user_id)
     
-    # Отправляем сообщение в ту же группу, где нажали кнопку
     await bot.send_message(
         chat_id=ADMIN_ID,
         text=f"Введите ответ (ID: <code>{target_user_id}</code>):",
@@ -233,7 +232,6 @@ async def send_reply_to_user(message: Message, state: FSMContext):
     
     await state.clear()
 
-# Диалог обратно в группу в нужном формате
 @dp.message(F.chat.type == "private", ~F.text.startswith('/'))
 async def user_to_admin_dialog(message: Message):
     user_id = message.from_user.id
@@ -254,7 +252,6 @@ async def user_to_admin_dialog(message: Message):
     except Exception as e:
         print(f"Ошибка пересылки сообщения админам: {e}")
 
-# Веб-сервер для бесплатного тарифа Render
 async def handle(request):
     return web.Response(text="Bot is running!")
 
