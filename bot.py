@@ -28,28 +28,45 @@ class Questionnaire(StatesGroup):
     roblox_nick = State()
     skin_photo = State()
 
+# Состояние для админа (ожидание текста ответа конкретному пользователю)
+class AdminReply(StatesGroup):
+    waiting_for_reply = State()
+
+# Главное инлайн-меню для пользователя
 def get_inline_keyboard():
     kb = [
-        [InlineKeyboardButton(text="Анкетирование", callback_data="start_ank")]
+        [InlineKeyboardButton(text="Заполнить анкету", callback_data="start_ank")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+# Инлайн-кнопки под анкетой в админ-группе
+def get_admin_action_keyboard(user_id: int):
+    kb = [
+        [InlineKeyboardButton(text="Ответить", callback_data=f"admin_reply_{user_id}")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+# Кнопка отмены для админа
+def get_cancel_keyboard():
+    kb = [
+        [InlineKeyboardButton(text="Отменить ответ", callback_data="admin_cancel")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    # Берем имя пользователя из Телеграма для персонального приветствия
     user_name = message.from_user.first_name
     await message.answer(
         f"<b>Приветствую, {user_name}!</b> 👋\n\n"
-        "<i>Нажмите на кнопку ниже, чтобы появилась анкета.</i>",
+        "<i>Нажмите на кнопку ниже, чтобы вызвать анкету на вступление в клан.</i>",
         reply_markup=get_inline_keyboard()
     )
 
-# Обработка нажатия на инлайн-кнопку
 @dp.callback_query(F.data == "start_ank")
 async def callback_start_ank(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Questionnaire.name)
     await callback.message.answer("<b>1/8.</b> Введите ваше <b>имя или псевдоним</b>:")
-    await callback.answer() # Закрываем часики анимации на кнопке
+    await callback.answer()
 
 @dp.message(Command('anc'))
 async def start_questionnaire_cmd(message: Message, state: FSMContext):
@@ -63,27 +80,25 @@ async def process_name(message: Message, state: FSMContext):
         return
     await state.update_data(name=message.text)
     await state.set_state(Questionnaire.age)
-    await message.answer("<b>2/8.</b> Ваш <b>возраст</b> <i>(берем с 13+)</i>:")
+    await message.answer("<b>2/8.</b> Ваш <b>возраст</b> <i>(требование 13+)</i>:")
 
 @dp.message(Questionnaire.age)
 async def process_age(message: Message, state: FSMContext):
     if not message.text or not message.text.isdigit():
-        await message.answer("<i>Пожалуйста, введите возраст только цифрами.</i>")
+        await message.answer("<i>Пожалуйста, введите возраст только цифрами (например: 14).</i>")
         return
-    
     await state.update_data(age=message.text)
     await state.set_state(Questionnaire.level)
-    await message.answer("<b>3/8.</b> Ваш <b>уровень</b> <i>(берем от 40+)</i>:")
+    await message.answer("<b>3/8.</b> Ваш <b>уровень</b> <i>(лвл 40+)</i>:")
 
 @dp.message(Questionnaire.level)
 async def process_level(message: Message, state: FSMContext):
     if not message.text or not message.text.isdigit():
-        await message.answer("<i>Пожалуйста, введите ваш уровень только цифрами.</i>")
+        await message.answer("<i>Пожалуйста, введите ваш уровень только цифрами (например: 45).</i>")
         return
-
     await state.update_data(level=message.text)
     await state.set_state(Questionnaire.skills)
-    await message.answer("<b>4/8.</b> Ваши <b>умения?</b> <i>(не обязательно)</i>:")
+    await message.answer("<b>4/8.</b> Ваши <b>умения</b> <i>(если нет, напишите «нет»)</i>:")
 
 @dp.message(Questionnaire.skills)
 async def process_skills(message: Message, state: FSMContext):
@@ -106,9 +121,8 @@ async def process_sociability(message: Message, state: FSMContext):
 @dp.message(Questionnaire.telegram_username)
 async def process_tg(message: Message, state: FSMContext):
     if not message.text or not re.fullmatch(r'@[a-zA-Z0-9_]{4,32}', message.text):
-        await message.answer("<i>Введите корректный юз на английском языке, начиная со знака @ (например: @ivan_pro).</i>")
+        await message.answer("<i>Введите корректный юз на английском языке, начиная со знака @).</i>")
         return
-
     await state.update_data(telegram_username=message.text)
     await state.set_state(Questionnaire.roblox_nick)
     await message.answer("<b>7/8.</b> Ваш <b>ник в роблоксе</b> <i>(только на английском)</i>:")
@@ -118,10 +132,9 @@ async def process_roblox(message: Message, state: FSMContext):
     if not message.text or not re.fullmatch(r'[a-zA-Z0-9_]{3,20}', message.text):
         await message.answer("<i>Ник в Роблоксе должен быть на английском языке без пробелов.</i>")
         return
-
     await state.update_data(roblox_nick=message.text)
     await state.set_state(Questionnaire.skin_photo)
-    await message.answer("<b>8/8.</b> Отправьте <b>скриншот вашего скина</b>:")
+    await message.answer("<b>8/8.</b> Отправьте <b>скриншот вашего скина</b> <i>(картинкой)</i>:")
 
 @dp.message(Questionnaire.skin_photo, F.photo)
 async def process_photo(message: Message, state: FSMContext):
@@ -134,56 +147,98 @@ async def process_photo(message: Message, state: FSMContext):
     user_id = message.from_user.id
 
     summary = (
-        f"<b>Новая анкета в клан</b>\n"
+        f"<b>Новая анкета в клан!</b>\n"
         f"<b>Отправитель ID:</b> <code>{user_id}</code>\n\n"
         f"<b>Имя:</b> {name}\n"
         f"<b>Возраст:</b> {data['age']}\n"
         f"<b>Лвл:</b> {data['level']}\n"
         f"<b>Умения:</b> <i>{skills}</i>\n"
-        f"<b>Общительность:</b> <i>{sociability}</i>\n"
+        f"<b>Общительный ли:</b> <i>{sociability}</i>\n"
         f"<b>Юз ТГ:</b> {data['telegram_username']}\n"
-        f"<b>Ник в Роблоксе:</b> <code>{data['roblox_nick']}</code>"
+        f"<b>Ник в РБ:</b> <code>{data['roblox_nick']}</code>"
     )
     
     try:
-        await bot.send_photo(chat_id=ADMIN_ID, photo=photo_id, caption=summary)
+        await bot.send_photo(
+            chat_id=ADMIN_ID, 
+            photo=photo_id, 
+            caption=summary,
+            reply_markup=get_admin_action_keyboard(user_id)
+        )
     except Exception as e:
         print(f"Ошибка отправки в группу: {e}")
 
     await message.answer(
-        "<b>Анкета отправлена!</b>\n"
-        "<i>Ожидайте сообщение от администрации.</i>",
+        "✅ <b>Анкета успешно отправлена!</b>\n"
+        "<i>Ожидайте ответа от администрации. Вы можете отвечать на сообщения бота, если администраторы напишут вам.</i>",
         reply_markup=get_inline_keyboard()
     )
     await state.clear()
 
 @dp.message(Questionnaire.skin_photo)
 async def process_photo_incorrect(message: Message):
-    await message.answer("<i>Пожалуйста, отправьте именно фотографию скина (картинкой).</i>")
+    await message.answer("<i>Пожалуйста, отправьте именно фотографию скина.</i>")
 
-# Обратная связь от админов (когда админ делает Reply на анкету в группе)
-@dp.message(F.chat.id == ADMIN_ID)
-async def admin_reply_handler(message: Message):
-    if not message.reply_to_message:
-        return
+
+@dp.callback_query(F.data.startswith("admin_reply_"), F.chat.id == ADMIN_ID)
+async def admin_start_reply(callback: CallbackQuery, state: FSMContext):
+    target_user_id = int(callback.data.split("_")[2])
     
-    replied_text = message.reply_to_message.caption or message.reply_to_message.text
-    if not replied_text:
+    await state.set_state(AdminReply.waiting_for_reply)
+    await state.update_data(target_user_id=target_user_id)
+    
+    await callback.message.answer(
+        f" Введите ответ (ID: <code>{target_user_id}</code>):",
+        reply_markup=get_cancel_keyboard()
+    )
+    await callback.answer()
+
+@dp.callback_query(F.data == "admin_cancel", F.chat.id == ADMIN_ID)
+async def admin_cancel_reply(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.answer("<i>Ответ отменен.</i>")
+    await callback.answer()
+
+@dp.message(F.chat.id == ADMIN_ID, AdminReply.waiting_for_reply)
+async def send_reply_to_user(message: Message, state: FSMContext):
+    data = await state.get_data()
+    target_user_id = data.get("target_user_id")
+    
+    if not target_user_id:
+        await state.clear()
         return
 
-    # Ищем ID пользователя в тексте отправленной анкеты
-    match = re.search(r'ID:\s*<code>(\d+)code>', replied_text) or re.search(r'ID:\s*(\d+)', replied_text)
+    try:
+        await bot.send_message(
+            chat_id=target_user_id,
+            text=f"<b>Ответ от администрации клана:</b>\n\n{message.text}"
+        )
+        await message.answer(f"<i>Ответ успешно доставлен <code>{target_user_id}</code>!</i>")
+    except Exception as e:
+        await message.answer(f"<i>Не удалось отправить сообщение: {e}</i>")
     
-    if match:
-        target_user_id = int(match.group(1))
-        try:
-            await bot.send_message(
-                chat_id=target_user_id,
-                text=f"<b>Ответ от администрации:</b>\n\n{message.text}"
-            )
-            await message.reply("✅ <i>Ответ успешно доставлен!</i>")
-        except Exception as e:
-            await message.reply(f"❌ <i>Не удалось отправить сообщение пользователю: {e}</i>")
+    await state.clear()
+
+# Диалог обратно в группу в нужном формате
+@dp.message(F.chat.type == "private", ~F.text.startswith('/'))
+async def user_to_admin_dialog(message: Message):
+    user_id = message.from_user.id
+    username = f"@{message.from_user.username}" if message.from_user.username else f"id{user_id}"
+
+    forward_text = (
+        f"Сообщение от {username}, ID - {user_id}\n"
+        f"текст: {html.escape(message.text)}"
+    )
+
+    try:
+        await bot.send_message(
+            chat_id=ADMIN_ID,
+            text=forward_text,
+            reply_markup=get_admin_action_keyboard(user_id)
+        )
+        await message.answer("<i>Ваше сообщение отправлено администрации. Ожидайте ответа!</i>")
+    except Exception as e:
+        print(f"Ошибка пересылки сообщения админам: {e}")
 
 # Веб-сервер для бесплатного тарифа Render
 async def handle(request):
