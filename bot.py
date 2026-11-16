@@ -147,14 +147,14 @@ async def process_photo(message: Message, state: FSMContext):
     user_id = message.from_user.id
 
     summary = (
-        f"<b>Новая анкета в клан!</b>\n"
-        f"<b>Отправитель ID:</b> <code>{user_id}</code>\n\n"
+        f"<b>Новая анкета в клан</b>\n"
+        f"<b>Отправитель:</b> {username}, ID - {user_id}\n\n"
         f"<b>Имя:</b> {name}\n"
         f"<b>Возраст:</b> {data['age']}\n"
         f"<b>Лвл:</b> {data['level']}\n"
         f"<b>Умения:</b> <i>{skills}</i>\n"
         f"<b>Общительный ли:</b> <i>{sociability}</i>\n"
-        f"<b>Юз ТГ:</b> {data['telegram_username']}\n"
+        f"<b>Юз ТГ (из анкеты):</b> {data['telegram_username']}\n"
         f"<b>Ник в РБ:</b> <code>{data['roblox_nick']}</code>"
     )
     
