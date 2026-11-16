@@ -68,7 +68,7 @@ async def process_name(message: Message, state: FSMContext):
 @dp.message(Questionnaire.age)
 async def process_age(message: Message, state: FSMContext):
     if not message.text or not message.text.isdigit():
-        await message.answer("⚠️ <i>Пожалуйста, введите возраст только цифрами.</i>")
+        await message.answer("<i>Пожалуйста, введите возраст только цифрами.</i>")
         return
     
     await state.update_data(age=message.text)
