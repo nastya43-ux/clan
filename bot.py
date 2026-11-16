@@ -57,7 +57,7 @@ def get_cancel_keyboard():
 async def cmd_start(message: Message):
     user_name = message.from_user.first_name
     await message.answer(
-        f"<b>Приветствую, {user_name}!</b> 👋\n\n"
+        f"<b>Приветствую, {user_name}!</b> \n\n"
         "<i>Нажмите на кнопку ниже, чтобы вызвать анкету на вступление в клан.</i>",
         reply_markup=get_inline_keyboard()
     )
@@ -226,7 +226,7 @@ async def send_reply_to_user(message: Message, state: FSMContext):
             chat_id=target_user_id,
             text=f"<b>Ответ от администрации клана:</b>\n\n{message.text}"
         )
-        await message.answer(f"<i>Ответ успешно доставлен <code>{target_user_id}</code>!</i>")
+        await message.answer(f"<i>Ответ успешно доставлен</i>")
     except Exception as e:
         await message.answer(f"<i>Не удалось отправить сообщение: {e}</i>")
     
