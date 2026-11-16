@@ -57,7 +57,7 @@ def get_cancel_keyboard():
 async def cmd_start(message: Message):
     user_name = message.from_user.first_name
     await message.answer(
-        f"<b>Приветствую, {user_name}!</b> 👋\n\n"
+        f"<b>Приветствую, {user_name}!</b> \n\n"
         "<i>Нажмите на кнопку ниже, чтобы вызвать анкету на вступление в клан.</i>",
         reply_markup=get_inline_keyboard()
     )
@@ -80,25 +80,25 @@ async def process_name(message: Message, state: FSMContext):
         return
     await state.update_data(name=message.text)
     await state.set_state(Questionnaire.age)
-    await message.answer("<b>2/8.</b> Ваш <b>возраст</b> <i>(требование 13+)</i>:")
+    await message.answer("<b>2/8.</b> Ваш <b>возраст</b> <i>(берем с 13+)</i>:")
 
 @dp.message(Questionnaire.age)
 async def process_age(message: Message, state: FSMContext):
     if not message.text or not message.text.isdigit():
-        await message.answer("<i>Пожалуйста, введите возраст только цифрами (например: 14).</i>")
+        await message.answer("<i>Пожалуйста, введите возраст только цифрами.</i>")
         return
     await state.update_data(age=message.text)
     await state.set_state(Questionnaire.level)
-    await message.answer("<b>3/8.</b> Ваш <b>уровень</b> <i>(лвл 40+)</i>:")
+    await message.answer("<b>3/8.</b> Ваш <b>уровень</b> <i>(берем от 40+)</i>:")
 
 @dp.message(Questionnaire.level)
 async def process_level(message: Message, state: FSMContext):
     if not message.text or not message.text.isdigit():
-        await message.answer("<i>Пожалуйста, введите ваш уровень только цифрами (например: 45).</i>")
+        await message.answer("<i>Пожалуйста, введите ваш уровень только цифрами.</i>")
         return
     await state.update_data(level=message.text)
     await state.set_state(Questionnaire.skills)
-    await message.answer("<b>4/8.</b> Ваши <b>умения</b> <i>(если нет, напишите «нет»)</i>:")
+    await message.answer("<b>4/8.</b> Ваши <b>умения</b> <i>(Не обязательно)</i>:")
 
 @dp.message(Questionnaire.skills)
 async def process_skills(message: Message, state: FSMContext):
@@ -116,7 +116,7 @@ async def process_sociability(message: Message, state: FSMContext):
         return
     await state.update_data(sociability=message.text)
     await state.set_state(Questionnaire.telegram_username)
-    await message.answer("<b>6/8.</b> Укажите ваш <b>юз в телеграме</b> <i>(на английском через @, например: @username)</i>:")
+    await message.answer("<b>6/8.</b> Укажите ваш <b>юз в телеграме</b> <i>(на английском через @)</i>:")
 
 @dp.message(Questionnaire.telegram_username)
 async def process_tg(message: Message, state: FSMContext):
@@ -169,8 +169,8 @@ async def process_photo(message: Message, state: FSMContext):
         print(f"Ошибка отправки в группу: {e}")
 
     await message.answer(
-        "✅ <b>Анкета успешно отправлена!</b>\n"
-        "<i>Ожидайте ответа от администрации. Вы можете отвечать на сообщения бота, если администраторы напишут вам.</i>",
+        "<b>Анкета успешно отправлена!</b>\n"
+        "<i>Ожидайте ответа от администрации.</i>",
         reply_markup=get_inline_keyboard()
     )
     await state.clear()
@@ -180,23 +180,37 @@ async def process_photo_incorrect(message: Message):
     await message.answer("<i>Пожалуйста, отправьте именно фотографию скина.</i>")
 
 
-@dp.callback_query(F.data.startswith("admin_reply_"), F.chat.id == ADMIN_ID)
+@dp.callback_query(F.data.startswith("admin_reply_"))
 async def admin_start_reply(callback: CallbackQuery, state: FSMContext):
+    # Проверяем, что нажатие происходит именно из админской группы
+    if callback.message.chat.id != ADMIN_ID:
+        await callback.answer("Эта кнопка доступна только администраторам в группе.", show_alert=True)
+        return
+
     target_user_id = int(callback.data.split("_")[2])
     
     await state.set_state(AdminReply.waiting_for_reply)
     await state.update_data(target_user_id=target_user_id)
     
-    await callback.message.answer(
-        f" Введите ответ (ID: <code>{target_user_id}</code>):",
+    # Отправляем сообщение в ту же группу, где нажали кнопку
+    await bot.send_message(
+        chat_id=ADMIN_ID,
+        text=f"Введите ответ (ID: <code>{target_user_id}</code>):",
         reply_markup=get_cancel_keyboard()
     )
     await callback.answer()
 
-@dp.callback_query(F.data == "admin_cancel", F.chat.id == ADMIN_ID)
+@dp.callback_query(F.data == "admin_cancel")
 async def admin_cancel_reply(callback: CallbackQuery, state: FSMContext):
+    if callback.message.chat.id != ADMIN_ID:
+        await callback.answer()
+        return
+
     await state.clear()
-    await callback.message.answer("<i>Ответ отменен.</i>")
+    await bot.send_message(
+        chat_id=ADMIN_ID,
+        text="<i>Ответ отменен.</i>"
+    )
     await callback.answer()
 
 @dp.message(F.chat.id == ADMIN_ID, AdminReply.waiting_for_reply)
